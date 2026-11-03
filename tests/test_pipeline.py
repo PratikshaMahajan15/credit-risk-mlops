@@ -61,21 +61,3 @@ def test_api_scores_with_the_champion(workspace, monkeypatch):
 def test_model_card_is_written(workspace):
     text = model_card.build(workspace["reports"])
     assert "Model Card" in text and "Out-of-time test" in text and "Limitations" in text
-
-
-def test_demo_app_runs_for_every_example(workspace, monkeypatch):
-    import src.config as cfg
-    monkeypatch.setattr(cfg, "MODELS_DIR", workspace["models"])
-    monkeypatch.setattr(cfg, "REPORTS_DIR", workspace["reports"])
-    from streamlit.testing.v1 import AppTest
-    from pathlib import Path
-    app_path = str(Path(__file__).resolve().parent.parent / "app.py")
-    at = AppTest.from_file(app_path, default_timeout=120).run()
-    assert not at.exception
-    assert [t.label for t in at.tabs][0] == "Check an application"
-    results = {}
-    for name in ["Strong applicant", "Average applicant", "Risky applicant"]:
-        at.radio[0].set_value(name).run()
-        assert not at.exception
-        results[name] = float(at.metric[0].value.replace("about ", ""))
-    assert results["Strong applicant"] < results["Risky applicant"]

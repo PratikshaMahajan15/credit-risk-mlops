@@ -1,0 +1,55 @@
+# A small Hadoop (HDFS) cluster in Docker plus the PySpark ETL job.
+#
+#   docker compose -f docker-compose.hdfs.yml up -d namenode datanode
+#   docker exec namenode hdfs dfsadmin -safemode wait
+#   docker exec namenode hdfs dfs -mkdir -p /lending/raw
+#   docker exec namenode hdfs dfs -put -f /data/raw/accepted_2007_to_2018Q4.csv.gz /lending/raw/
+#   docker compose -f docker-compose.hdfs.yml --profile etl run --rm spark-etl
+#
+# HDFS web page: http://localhost:9870  (Utilities > Browse the file system)
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=credit-risk
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+      - ./data/raw:/data/raw:ro
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    depends_on:
+      - namenode
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+
+  spark-etl:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.spark
+    profiles: ["etl"]
+    depends_on:
+      - namenode
+      - datanode
+    environment:
+      HDFS_URI: hdfs://namenode:9000
+      HDFS_RAW: /lending/raw/accepted_2007_to_2018Q4.csv.gz
+      HDFS_OUT: /lending/processed
+      SPARK_DRIVER_MEMORY: 4g
+    volumes:
+      - ./data/processed:/app/data/processed
+
+volumes:
+  namenode_data:
+  datanode_data:

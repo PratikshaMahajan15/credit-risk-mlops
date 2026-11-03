@@ -9,8 +9,7 @@ optbinning
 matplotlib
 joblib
 mlflow
-# Demo app and API
-streamlit
+# API
 fastapi
 uvicorn
 httpx

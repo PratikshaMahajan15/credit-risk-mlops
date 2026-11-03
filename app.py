@@ -26,13 +26,13 @@ DISCLAIMER = ("Demo built on public US loan data (Lending Club). It is a learnin
 PRESETS = {
     "Strong applicant": dict(loan_amnt=8000, annual_inc=120000, dti=8, fico_range_low=760, inq_last_6mths=0,
                              credit_history_years=20, revol_util=15, emp_length_years=10, home_ownership="MORTGAGE",
-                             verification_status="Verified", purpose="credit_card", addr_state="CA"),
+                             verification_status="Verified", purpose="credit_card"),
     "Average applicant": dict(loan_amnt=14000, annual_inc=65000, dti=18, fico_range_low=700, inq_last_6mths=1,
                               credit_history_years=12, revol_util=45, emp_length_years=5, home_ownership="RENT",
-                              verification_status="Verified", purpose="debt_consolidation", addr_state="TX"),
+                              verification_status="Verified", purpose="debt_consolidation"),
     "Risky applicant": dict(loan_amnt=25000, annual_inc=40000, dti=32, fico_range_low=660, inq_last_6mths=4,
                             credit_history_years=4, revol_util=90, emp_length_years=1, home_ownership="RENT",
-                            verification_status="Not Verified", purpose="other", addr_state="FL"),
+                            verification_status="Not Verified", purpose="other"),
 }
 
 
@@ -55,13 +55,13 @@ def describe(feature, value):
         "revol_util": lambda v: f"{v:.0f}% of available credit is in use",
         "annual_inc": lambda v: f"Yearly income of ${v:,.0f}",
         "loan_amnt": lambda v: f"Loan amount of ${v:,.0f}",
-        "inq_last_6mths": lambda v: f"{v:.0f} credit enquiries in the last 6 months",
+        "inq_last_6mths": lambda v: f"{v:.0f} credit {'enquiry' if round(v) == 1 else 'enquiries'} in the last 6 months",
         "emp_length_years": lambda v: f"{v:.0f} years in current job",
-        "open_acc": lambda v: f"{v:.0f} open credit accounts",
+        "open_acc": lambda v: f"{v:.0f} open credit {'account' if round(v) == 1 else 'accounts'}",
         "total_acc": lambda v: f"{v:.0f} credit accounts in total",
-        "delinq_2yrs": lambda v: f"{v:.0f} late payments in the last 2 years",
+        "delinq_2yrs": lambda v: f"{v:.0f} late {'payment' if round(v) == 1 else 'payments'} in the last 2 years",
         "revol_bal": lambda v: f"Revolving balance of ${v:,.0f}",
-        "mort_acc": lambda v: f"{v:.0f} mortgage accounts",
+        "mort_acc": lambda v: f"{v:.0f} mortgage {'account' if round(v) == 1 else 'accounts'}",
     }
     if feature in fmt:
         return fmt[feature](float(value))
@@ -88,7 +88,6 @@ def tab_check(model, meta, reference):
 
     preset_name = st.radio("Start from an example", list(PRESETS), horizontal=True, index=1)
     p = PRESETS[preset_name]
-    states = sorted(reference["addr_state"].dropna().unique()) if "addr_state" in reference else [p["addr_state"]]
     purposes = sorted(reference["purpose"].dropna().unique()) if "purpose" in reference else [p["purpose"]]
     homes = ["RENT", "MORTGAGE", "OWN"]
     verifs = ["Verified", "Source Verified", "Not Verified"]
@@ -112,11 +111,23 @@ def tab_check(model, meta, reference):
         hist = st.slider("Years of credit history", 0, 40, int(p["credit_history_years"]), key=f"hist_{key}")
         inq = st.slider("Credit enquiries in the last 6 months", 0, 10, int(p["inq_last_6mths"]), key=f"inq_{key}")
         purpose = st.selectbox("Loan purpose", purposes, idx(purposes, p["purpose"]), key=f"pur_{key}")
-        state = st.selectbox("State", states, idx(states, p["addr_state"]), key=f"st_{key}")
 
     application = dict(loan_amnt=loan, annual_inc=income, dti=dti, fico_range_low=fico, inq_last_6mths=inq,
                        credit_history_years=hist, revol_util=util, emp_length_years=emp, home_ownership=home,
-                       verification_status=verif, purpose=purpose, addr_state=state)
+                       verification_status=verif, purpose=purpose)
+    st.write("")
+    if st.button("Check risk", type="primary"):
+        st.session_state["checked_application"] = dict(application)
+    checked = st.session_state.get("checked_application")
+    if checked is None:
+        st.info("Press **Check risk** to see the result.")
+        st.caption(DISCLAIMER)
+        return
+    if checked != application:
+        st.info("You changed the details. Press **Check risk** again to update the result.")
+        st.caption(DISCLAIMER)
+        return
+
     r = score_one(model, meta, application)
     prob, points, thr = r["probability"], r["points"], r["threshold"]
     level, kind = risk_level(prob, thr)
@@ -195,7 +206,7 @@ def tab_health():
 
     img = Path(REPORTS_DIR) / "monitoring_timeline.png"
     if img.exists():
-        st.image(str(img), caption="Top: change in the model's scores. Middle: how well it sorts borrowers. Bottom: share of loans that went bad.")
+        st.image(str(img), caption="Results for the last two quarters appear later, because it takes time to find out whether a loan was repaid.")
 
     table = pd.DataFrame({
         "Quarter": log["quarter"],
@@ -210,9 +221,11 @@ def tab_health():
 
 def tab_about(meta):
     st.subheader("How it works")
+    n_train = f"{int(meta['n_train']):,}" if meta.get("n_train") else "many thousands of"
+    window = meta.get("trained_on") or "earlier years"
     st.markdown(
         """
-1. **Learn from the past.** The model studied about 144,000 finished loans from 2012-2013 and learned which
+1. **Learn from the past.** The model studied about {n_train} finished loans from {window} and learned which
    details (credit score, debts, history, and so on) went with loans that were not repaid.
 2. **Score a new application.** Each detail adds or removes points, like a credit score. The model also
    turns the score into the chance the loan is not repaid.
@@ -221,7 +234,7 @@ def tab_about(meta):
    goes bad costs five times as much as turning down a good one.
 5. **Keep watching.** New applications are checked regularly. If the model gets worse, a new one is
    trained and swapped in only when it is clearly better.
-        """)
+        """.replace("{n_train}", n_train).replace("{window}", str(window)))
     st.subheader("What it cannot do")
     st.markdown(
         """

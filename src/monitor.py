@@ -121,7 +121,6 @@ def run(processed_dir=PROCESSED_DIR, models_dir=MODELS_DIR, reports_dir=REPORTS_
                     "version": version, "trained_on": f"up to {quarters[j]}", "n_train": int(len(fit_df)),
                     "metrics": {"valid": {"auc": cmp_["challenger_auc"]}}, "features": champion.selected_,
                     "threshold": meta.get("threshold"), "promoted_at_quarter": str(q),
-                    "score_scaling": {"base_score": champion.base_score, "base_odds": champion.base_odds, "pdo": champion.pdo},
                     "reason": row["triggers"], "holdout_comparison": cmp_,
                 }
                 save_model(champion, models_dir / "champion", meta, reference)

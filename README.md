@@ -42,16 +42,6 @@ Paste your run's numbers here:
 ![Monitoring timeline](reports/monitoring_timeline.png)
 ![ROC](reports/roc_test.png)
 
-## Try it: the Loan Risk Check app
-
-A plain-language demo for non-technical viewers. Pick an example applicant (or change the details) and see the risk, the decision, and the reasons in everyday words. A second tab shows whether the system is still working well, and a third explains how it works and what it cannot do.
-
-```
-streamlit run app.py
-```
-
-<!-- add screenshots: docs/app_check.png, docs/app_health.png -->
-
 ## Setup (Windows)
 
 ```
@@ -87,8 +77,7 @@ Or step by step:
 | `python -m src.monitor` | Replays 2014-2015 quarter by quarter, monitors drift, retrains if needed |
 | `python -m src.monitor --mode scheduled` | Also reviews a challenger every quarter |
 | `python -m src.model_card` | Writes `docs/MODEL_CARD.md` |
-| `mlflow ui --backend-store-uri sqlite:///mlflow.db` | Browse runs and the model registry (if MLflow had to use its file backend, use `mlflow ui --backend-store-uri ./mlruns` with `MLFLOW_ALLOW_FILE_STORE=true`) |
-| `streamlit run app.py` | The plain-language demo app |
+| `mlflow ui --backend-store-uri sqlite:///mlflow.db` | Browse runs and the model registry |
 | `python -m src.record_matching` | PySpark record-matching exercise |
 | `python -m pytest` | Runs the tests |
 
@@ -115,7 +104,6 @@ Credit bureaus receive the same person from many lenders, with typos, different 
 ## Project structure
 
 ```
-app.py                 plain-language demo app (Streamlit)
 src/
   config.py            settings, paths, thresholds
   spark_prepare.py     PySpark data preparation
@@ -129,7 +117,6 @@ src/
   registry.py          saving and loading models
   tracking.py          MLflow helpers
   api.py               FastAPI service
-  scoring.py           scores one application (used by the API and the app)
   llm_explain.py       optional plain-language explanations
   model_card.py        writes the model card
   record_matching.py   PySpark duplicate-record matching
@@ -143,6 +130,6 @@ docker/                Dockerfile for the API
 - US peer-to-peer data, not Indian lending or bureau data. The methods carry over, the numbers do not.
 - Production is simulated. Drift and label delay are replayed from history.
 - Only 2012-2015 loans are used, because later loans have incomplete outcomes.
-- The approval-cost ratio (5:1) is an assumption, and the approval threshold is not re-tuned when a retrained model is promoted.
+- The approval-cost ratio (5:1) is an assumption.
 - No fairness testing across groups was done. A real lender would need it.
 - Record matching uses fictional data and hand-set weights.
