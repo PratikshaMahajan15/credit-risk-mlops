@@ -1,0 +1,15 @@
+.venv/
+data/
+models/
+mlruns/
+mlartifacts/
+mlflow.db
+__pycache__/
+*.pyc
+*.joblib
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+spark-warehouse/
+metastore_db/
+derby.log

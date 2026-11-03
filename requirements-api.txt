@@ -1,0 +1,11 @@
+# Minimal packages for the scoring API container
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+optbinning
+joblib
+pyarrow
+fastapi
+uvicorn

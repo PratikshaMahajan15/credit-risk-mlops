@@ -1,0 +1,17 @@
+# Core pipeline
+pandas
+numpy
+pyarrow
+scipy
+scikit-learn
+xgboost
+optbinning
+matplotlib
+joblib
+mlflow
+# API
+fastapi
+uvicorn
+httpx
+# Tests
+pytest

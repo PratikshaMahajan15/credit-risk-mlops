@@ -1,0 +1,12 @@
+# Packages for the Loan Risk Check demo (for example on a Hugging Face Space).
+# IMPORTANT: pin these to the versions you trained with, because the saved model is a pickle.
+# On Windows, with your venv active:  pip freeze | findstr /i "pandas numpy scikit-learn xgboost optbinning scipy joblib pyarrow streamlit"
+streamlit
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+optbinning
+joblib
+pyarrow

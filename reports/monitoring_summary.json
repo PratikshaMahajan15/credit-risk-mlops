@@ -1,0 +1,9 @@
+{
+  "quarters": 8,
+  "promotions": 0,
+  "promotion_quarters": [],
+  "first_psi_alert_quarter": null,
+  "auc_original_first": 0.6402,
+  "auc_original_last": 0.6467,
+  "auc_current_last": 0.6467
+}

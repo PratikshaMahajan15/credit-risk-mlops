@@ -1,0 +1,3 @@
+# Optional: plain-language explanations and tracing
+google-genai
+langfuse
