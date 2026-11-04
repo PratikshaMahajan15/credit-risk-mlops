@@ -10,15 +10,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
-import numpy as np
-import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import ALL_FEATURES, MODELS_DIR
+from src.config import MODELS_DIR
 from src.llm_explain import explain
-from src.models import FEATURE_LABELS
 from src.registry import load_model
+from src.scoring import score_one
 
 STATE = {}
 
@@ -116,18 +114,9 @@ def model_info():
 @app.post("/score", response_model=ScoreResponse)
 def score(application: Application):
     model, meta = _ready()
-    row = application.model_dump()
-    row["loan_to_income"] = row["loan_amnt"] / row["annual_inc"]
-    df = pd.DataFrame([row]).reindex(columns=ALL_FEATURES)
-    df = df.apply(lambda c: c if c.name in model.categorical else pd.to_numeric(c, errors="coerce"))
-
-    p = float(model.predict_proba(df)[0])
-    points = float(model.points(df)[0])
-    thr = (meta.get("threshold") or {}).get("threshold")
-    decision = "approve" if (thr is None or p <= thr) else "decline"
-    reasons = [{"feature": f, "label": FEATURE_LABELS.get(f, f), "impact": round(v, 4)}
-               for f, v in model.top_reasons(df, n=3)[0]]
-    text, source = explain(points, decision, reasons)
-    return {"probability_of_default": round(p, 4), "score": int(round(points)), "decision": decision,
-            "risk_threshold": thr, "reasons": reasons, "explanation": text,
-            "explanation_source": source, "model_version": int(meta.get("version", 1))}
+    r = score_one(model, meta, application.model_dump())
+    reasons = [{"feature": f["feature"], "label": f["label"], "impact": f["impact"]} for f in r["risk_factors"]]
+    text, source = explain(r["points"], r["decision"], reasons)
+    return {"probability_of_default": round(r["probability"], 4), "score": int(round(r["points"])),
+            "decision": r["decision"], "risk_threshold": r["threshold"], "reasons": reasons,
+            "explanation": text, "explanation_source": source, "model_version": int(meta.get("version", 1))}

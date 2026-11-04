@@ -54,3 +54,23 @@ def test_spark_matches_pandas(tmp_path):
         assert (a["bad"] == b["bad"]).all()
         for col in NUMERIC_FEATURES:
             np.testing.assert_allclose(a[col].astype(float), b[col].astype(float), rtol=1e-6, equal_nan=True)
+
+
+def test_hdfs_etl_round_trip_matches_pandas(tmp_path):
+    """The HDFS ETL (here pointed at a local folder instead of hdfs://) gives the same data as pandas,
+    and really writes the three Parquet splits to the output location."""
+    from src import spark_hdfs_etl
+
+    path = raw_file(tmp_path)
+    out_dir = tmp_path / "hdfs_sim"
+    pandas_splits = day2_prepare.prepare_frame(day1_explore.load_raw(path, verbose=False), verbose=False)
+    spark_splits = spark_hdfs_etl.run(str(path), out_dir.as_uri(), local_dir=tmp_path / "local_copy")
+    for name in ["train", "valid", "test"]:
+        assert (out_dir / name).exists() and any((out_dir / name).glob("*.parquet"))
+        assert (tmp_path / "local_copy" / f"{name}.parquet").exists()
+        a = pandas_splits[name].assign(id=lambda d: d["id"].astype(str)).sort_values("id").reset_index(drop=True)
+        b = spark_splits[name].assign(id=lambda d: d["id"].astype(str)).sort_values("id").reset_index(drop=True)
+        assert len(a) == len(b) > 0
+        assert (a["bad"] == b["bad"]).all()
+        for col in NUMERIC_FEATURES:
+            np.testing.assert_allclose(a[col].astype(float), b[col].astype(float), rtol=1e-6, equal_nan=True)

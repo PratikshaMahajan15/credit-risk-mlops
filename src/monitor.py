@@ -121,6 +121,7 @@ def run(processed_dir=PROCESSED_DIR, models_dir=MODELS_DIR, reports_dir=REPORTS_
                     "version": version, "trained_on": f"up to {quarters[j]}", "n_train": int(len(fit_df)),
                     "metrics": {"valid": {"auc": cmp_["challenger_auc"]}}, "features": champion.selected_,
                     "threshold": meta.get("threshold"), "promoted_at_quarter": str(q),
+                    "score_scaling": {"base_score": champion.base_score, "base_odds": champion.base_odds, "pdo": champion.pdo},
                     "reason": row["triggers"], "holdout_comparison": cmp_,
                 }
                 save_model(champion, models_dir / "champion", meta, reference)
@@ -207,30 +208,41 @@ def _summary(out, promotions, backtest):
 
 
 def _plot(out, backtest, path):
-    fig, axes = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(9, 10), sharex=True)
     x = out["quarter"]
+    promoted = out[out["action"].str.startswith("PROMOTED")]
+    lab = out.dropna(subset=["auc_original"])
+
     ax = axes[0]
-    ax.plot(x, out["score_psi"], "o-", color="tab:blue", label="score PSI")
-    ax.axhline(PSI_WARN, ls="--", color="orange", label=f"warn {PSI_WARN}")
-    ax.axhline(PSI_ALERT, ls="--", color="red", label=f"alert {PSI_ALERT}")
-    ax.set_ylabel("Score PSI"); ax.legend(loc="upper left"); ax.set_title("Input drift")
+    ax.plot(x, out["score_psi"], "o-", color="tab:blue", label="change in score mix (PSI)")
+    ax.axhline(PSI_WARN, ls="--", color="orange", label=f"warning level ({PSI_WARN})")
+    ax.axhline(PSI_ALERT, ls="--", color="red", label=f"alert level ({PSI_ALERT})")
+    ax.set_ylim(-0.01, max(PSI_ALERT * 1.15, out["score_psi"].max() * 1.1))
+    ax.set_ylabel("Change in score mix"); ax.set_title("Are today's applicants changing? (closer to 0 = steadier)")
+    ax.legend(loc="center right")
 
     ax = axes[1]
-    lab = out.dropna(subset=["auc_original"])
-    ax.plot(lab["labeled_quarter"], lab["auc_original"], "o-", color="tab:red", label="original model (never retrained)")
-    ax.plot(lab["labeled_quarter"], lab["auc_current"], "o-", color="tab:green", label="monitored model (retrained when needed)")
-    if len(backtest):
-        b = backtest[backtest["version"] == backtest["version"].max()]
-        ax.plot(b["quarter"], b["auc_promoted"], "s--", color="tab:blue",
-                label="promoted model, back-tested on later quarters")
-    ax.set_ylabel("AUC on quarter whose outcomes arrived"); ax.legend(loc="lower left")
-    ax.set_title("Model quality over time")
+    if len(promoted):
+        ax.plot(lab["labeled_quarter"], lab["auc_original"], "o-", color="tab:red", label="original model (never retrained)")
+        ax.plot(lab["labeled_quarter"], lab["auc_current"], "o-", color="tab:green", label="monitored model (retrained when needed)")
+        if len(backtest):
+            b = backtest[backtest["version"] == backtest["version"].max()]
+            ax.plot(b["quarter"], b["auc_promoted"], "s--", color="tab:blue",
+                    label="promoted model, back-tested on later quarters")
+    else:
+        ax.plot(lab["labeled_quarter"], lab["auc_current"], "o-", color="tab:green",
+                label="model (no retraining was needed)")
+    ax.axhline(0.5, ls=":", color="grey", label="guessing (0.50)")
+    low = min(0.45, float(lab["auc_current"].min()) - 0.02) if len(lab) else 0.45
+    ax.set_ylim(low, 0.80)
+    ax.set_ylabel("AUC (0.50 = guessing)"); ax.set_title("Does the model still tell safe from risky borrowers?")
+    ax.legend(loc="lower left")
 
     ax = axes[2]
     ax.plot(lab["labeled_quarter"], lab["bad_rate_labeled"], "o-", color="tab:purple")
-    ax.set_ylabel("Bad rate"); ax.set_title("Default rate of the labelled quarter")
+    ax.set_ylabel("Share of loans gone bad"); ax.set_title("How many loans in each quarter were not repaid?")
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1%}")
 
-    promoted = out[out["action"].str.startswith("PROMOTED")]
     for _, r in promoted.iterrows():
         for a in axes:
             a.axvline(r["quarter"], color="green", alpha=0.5, ls=":")

@@ -8,14 +8,14 @@ Built on the public Lending Club loan data. **Learning and portfolio project: no
 
 | Stage | What happens | Tools |
 |---|---|---|
-| Data preparation | Reads 2.2 million loan records, builds the target, features and a time-based split | pandas, **PySpark** |
+| Data preparation | **PySpark ETL on a Dockerized Hadoop (HDFS) cluster**: reads 2.26 million loan records from HDFS, builds the target, features and a time-based split, writes Parquet back to HDFS (a plain pandas version also exists) | PySpark, HDFS, Docker, pandas |
 | Modelling | WoE logistic-regression **scorecard** (champion) vs XGBoost (challenger) vs raw baseline | optbinning, scikit-learn, XGBoost |
 | Tracking | Every run, metric and model version recorded; champion alias in the registry | MLflow |
 | Serving | Score, decision and top reasons for an application, as an API | FastAPI, Docker |
 | Monitoring | Replays later quarters: score PSI, per-feature CSI, AUC once outcomes arrive | own PSI/CSI code |
 | Retraining | Challenger trained on recent labelled data, promoted only if clearly better | champion-challenger |
 | Explanations | Optional plain-language rewrite of the reason codes (never makes the decision) | Gemini, Langfuse |
-| Quality | Unit and end-to-end tests, CI on every push, auto-generated model card | pytest, GitHub Actions |
+| Quality and delivery | Tests on every push, Docker images built, API image published to GitHub Container Registry from `main`, auto-generated model card | pytest, GitHub Actions |
 | Record matching | Separate PySpark exercise: finding duplicate customer records | PySpark |
 
 ## Why these design choices
@@ -41,6 +41,31 @@ Paste your run's numbers here:
 
 ![Monitoring timeline](reports/monitoring_timeline.png)
 ![ROC](reports/roc_test.png)
+
+## Try it: the Loan Risk Check app
+
+A plain-language demo for non-technical viewers. Pick an example applicant (or change the details) and see the risk, the decision, and the reasons in everyday words. A second tab shows whether the system is still working well, and a third explains how it works and what it cannot do.
+
+```
+streamlit run app.py
+```
+
+<!-- add screenshots: docs/app_check.png, docs/app_health.png -->
+
+## Distributed ETL on HDFS (Docker)
+
+The data preparation also runs as a PySpark job against a small Hadoop cluster in Docker (one namenode, one datanode). The raw file goes into HDFS, Spark reads it from there, and the prepared train, validation and test sets are written back to HDFS as Parquet. A local copy is then saved for the modelling steps.
+
+```
+docker compose -f docker-compose.hdfs.yml up -d namenode datanode
+docker exec namenode hdfs dfsadmin -safemode wait
+docker exec namenode hdfs dfs -mkdir -p /lending/raw
+docker exec namenode hdfs dfs -put -f /data/raw/accepted_2007_to_2018Q4.csv.gz /lending/raw/
+docker compose -f docker-compose.hdfs.yml --profile etl run --rm spark-etl
+docker exec namenode hdfs dfs -ls -h /lending/processed/train
+```
+
+The HDFS web page is at http://localhost:9870 (Utilities, Browse the file system). The Spark job runs in a container on the same Docker network, so it reaches the cluster at `hdfs://namenode:9000`. In the tests the same code runs against a local folder instead of HDFS.
 
 ## Setup (Windows)
 
@@ -72,12 +97,14 @@ Or step by step:
 
 | Command | Does |
 |---|---|
-| `python -m src.spark_prepare` | PySpark data preparation (or `python -m src.day1_explore` then `python -m src.day2_prepare` for pandas) |
+| `python -m src.spark_prepare` | PySpark data preparation on local files (or `python -m src.day1_explore` then `python -m src.day2_prepare` for pandas) |
+| `docker compose -f docker-compose.hdfs.yml --profile etl run --rm spark-etl` | The same preparation on HDFS (see above) |
 | `python -m src.train` | Trains the three models, saves `models/` and `reports/`, logs to MLflow |
 | `python -m src.monitor` | Replays 2014-2015 quarter by quarter, monitors drift, retrains if needed |
 | `python -m src.monitor --mode scheduled` | Also reviews a challenger every quarter |
 | `python -m src.model_card` | Writes `docs/MODEL_CARD.md` |
-| `mlflow ui --backend-store-uri sqlite:///mlflow.db` | Browse runs and the model registry |
+| `mlflow ui --backend-store-uri sqlite:///mlflow.db` | Browse runs and the model registry (if MLflow had to use its file backend, use `mlflow ui --backend-store-uri ./mlruns` with `MLFLOW_ALLOW_FILE_STORE=true`) |
+| `streamlit run app.py` | The plain-language demo app |
 | `python -m src.record_matching` | PySpark record-matching exercise |
 | `python -m pytest` | Runs the tests |
 
@@ -104,9 +131,11 @@ Credit bureaus receive the same person from many lenders, with typos, different 
 ## Project structure
 
 ```
+app.py                 plain-language demo app (Streamlit)
 src/
   config.py            settings, paths, thresholds
-  spark_prepare.py     PySpark data preparation
+  spark_prepare.py     PySpark data preparation (local files)
+  spark_hdfs_etl.py    PySpark ETL reading from and writing to HDFS
   day1_explore.py      pandas version of the first data step
   day2_prepare.py      pandas version of target, features and split
   models.py            scorecard, XGBoost challenger, baseline
@@ -117,11 +146,14 @@ src/
   registry.py          saving and loading models
   tracking.py          MLflow helpers
   api.py               FastAPI service
+  scoring.py           scores one application (used by the API and the app)
   llm_explain.py       optional plain-language explanations
   model_card.py        writes the model card
   record_matching.py   PySpark duplicate-record matching
 tests/                 unit and end-to-end tests
-docker/                Dockerfile for the API
+docker/                Dockerfiles (API, Spark ETL)
+docker-compose.hdfs.yml  Hadoop (HDFS) cluster and the Spark ETL job
+hadoop.env             Hadoop settings
 .github/workflows/     CI
 ```
 
@@ -130,6 +162,6 @@ docker/                Dockerfile for the API
 - US peer-to-peer data, not Indian lending or bureau data. The methods carry over, the numbers do not.
 - Production is simulated. Drift and label delay are replayed from history.
 - Only 2012-2015 loans are used, because later loans have incomplete outcomes.
-- The approval-cost ratio (5:1) is an assumption.
+- The approval-cost ratio (5:1) is an assumption, and the approval threshold is not re-tuned when a retrained model is promoted.
 - No fairness testing across groups was done. A real lender would need it.
 - Record matching uses fictional data and hand-set weights.
