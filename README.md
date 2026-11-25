@@ -51,7 +51,9 @@ streamlit run app.py
 ```
 
 ![Checking an application](docs/app_check.png)
+
 ![Is the system still working well?](docs/app_health.png)
+
 ![How it works](docs/app_how_it_works.png)
 
 ## Distributed ETL on HDFS (Docker)
