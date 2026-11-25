@@ -9,7 +9,7 @@ Built on the public Lending Club loan data. **Learning and portfolio project: no
 | Stage | What happens | Tools |
 |---|---|---|
 | Data preparation | **PySpark ETL on a Dockerized Hadoop (HDFS) cluster**: reads 2.26 million loan records from HDFS, builds the target, features and a time-based split, writes Parquet back to HDFS (a plain pandas version also exists) | PySpark, HDFS, Docker, pandas |
-| Modelling | WoE logistic-regression **scorecard** (champion) vs XGBoost (challenger) vs raw baseline | optbinning, scikit-learn, XGBoost |
+| Modelling | WoE logistic-regression **scorecard** (champion) vs XGBoost (challenger) vs raw baseline | own WoE binning (numpy/pandas), scikit-learn, XGBoost |
 | Tracking | Every run, metric and model version recorded; champion alias in the registry | MLflow |
 | Serving | Score, decision and top reasons for an application, as an API | FastAPI, Docker |
 | Monitoring | Replays later quarters: score PSI, per-feature CSI, AUC once outcomes arrive | own PSI/CSI code |
@@ -50,7 +50,9 @@ A plain-language demo for non-technical viewers. Pick an example applicant (or c
 streamlit run app.py
 ```
 
-<!-- add screenshots: docs/app_check.png, docs/app_health.png -->
+![Checking an application](docs/app_check.png)
+![Is the system still working well?](docs/app_health.png)
+![How it works](docs/app_how_it_works.png)
 
 ## Distributed ETL on HDFS (Docker)
 
@@ -138,6 +140,7 @@ src/
   spark_hdfs_etl.py    PySpark ETL reading from and writing to HDFS
   day1_explore.py      pandas version of the first data step
   day2_prepare.py      pandas version of target, features and split
+  binning.py           Weight-of-Evidence binning (no compiled dependencies)
   models.py            scorecard, XGBoost challenger, baseline
   metrics.py           AUC, Gini, KS, calibration, PSI, CSI, threshold
   train.py             training, evaluation, reports, MLflow
